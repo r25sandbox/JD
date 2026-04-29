@@ -1,90 +1,80 @@
+<!DOCTYPE html>
 <!--
   ============================================================
   Leadership Self-Assessment — Sources of Insight edition
   ------------------------------------------------------------
-  Version: v0.2
+  Version: v0.3
   ------------------------------------------------------------
   CHANGELOG
-  v0.2  Gated edition — JD brand styling, 5 free / 10 locked.
-        - Brand palette: warm cream bg (#FBF7F0), deep teal ink (#1F3A3D), warm gold accent (#B8893A), muted slate body
-        - Headline serif (Georgia stack), body sans
-        - 5 free categories unlocked: Top 10, Core, Action, Communication, Vision/Mission/Values
-        - 10 locked categories: greyed cards with lock badge, click anywhere on row opens Request Access modal
-        - Modal mockup: name + email + "why" textarea + Request Access button; client-side success message only (no backend, no fetch, no validation beyond required attr)
-        - Locked categories still rendered (showing item count + lock) so visitors see what they get with access
-        - Free items behave as v0.1; localStorage key bumped to 'lc_v2_state' to avoid v0.1 collision
-        - Footer attribution + tagline tying back to Sources of Insight voice ("Stand on the shoulders of giants")
-        - Reset button styling refined to match brand
+  v0.3  Wizard UX. One question per card with auto-advance.
+        - Replaces accordion (v0.2) with linear card flow:
+          intro → [category transition → questions...] × 5 → results
+        - Category transition cards act as "chapter breaks" preserving
+          JD's pedagogical structure (name + tagline + "X practices")
+        - Auto-advance on score tap (180ms delay for visual feedback)
+        - Top progress bar: "Question 12 of 67 · Communication"
+        - Back arrow (top-left) navigates one step backward through
+          card history (questions, transitions, intro all reachable)
+        - Skip link (top-right) advances without scoring
+        - Keyboard: 1/2/3 score, Left/Right navigate, Esc skips
+        - Resume support: state remembers currentIndex, returning user
+          sees a "Continue where you left off?" prompt on the intro
+        - Results screen at end: snapshot + Top Strengths + Growth Areas,
+          followed by the locked "Full Library" CTA which opens the
+          v0.2 Request Access modal (kept verbatim)
+        - localStorage key bumped to 'lc_v3_state' (separate from v0.2)
+        - Single-file HTML, all inline styles, vanilla JS, CSP-safe
+          (delegated addEventListener, no onclick=, no <style> blocks)
+        - Brand palette and Georgia serif headlines preserved from v0.2
+  v0.2  Gated edition — JD brand styling, 5 free / 10 locked, accordion.
   v0.1  Initial prototype — open access, all 15 categories scorable.
   ============================================================
 -->
-<div id="lc-wrap" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#2c3e44;background:#FBF7F0;max-width:780px;margin:0 auto;padding:32px 20px;line-height:1.55;">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Leader's Checklist — Sources of Insight</title>
+</head>
+<body style="margin:0;padding:0;background:#FBF7F0;">
 
-  <!-- HEADER -->
-  <div style="text-align:center;margin-bottom:28px;">
-    <div style="font-size:0.72em;letter-spacing:0.18em;text-transform:uppercase;color:#B8893A;font-weight:600;margin-bottom:10px;">Sources of Insight</div>
-    <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:2.1em;font-weight:700;color:#1F3A3D;margin:0 0 10px 0;letter-spacing:-0.01em;line-height:1.2;">The Leader's Checklist</h1>
-    <p style="font-style:italic;color:#5a6b70;font-size:1em;margin:0 0 6px 0;">&ldquo;If your actions inspire others to dream more, learn more, do more and become more, you are a leader.&rdquo;</p>
-    <p style="font-size:0.82em;color:#8a9ba1;margin:0;">&mdash; John Quincy Adams</p>
-  </div>
+<div id="lc-wrap" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#2c3e44;background:#FBF7F0;min-height:100vh;display:flex;flex-direction:column;">
 
-  <!-- DIVIDER -->
-  <div style="height:1px;background:linear-gradient(to right,transparent,#d4c5a8,transparent);margin:0 0 28px 0;"></div>
-
-  <!-- SUMMARY CARD -->
-  <div id="lc-summary" style="background:#fff;border:1px solid #e8dfc9;border-left:4px solid #B8893A;border-radius:6px;padding:20px;margin-bottom:28px;box-shadow:0 1px 3px rgba(31,58,61,0.04);">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
-      <div style="font-family:Georgia,serif;font-weight:700;font-size:1.1em;color:#1F3A3D;">Your Snapshot</div>
-      <div id="lc-progress-text" style="font-size:0.82em;color:#8a9ba1;">0% complete</div>
-    </div>
-    <div style="background:#f0e8d6;border-radius:999px;height:6px;overflow:hidden;margin-bottom:14px;">
-      <div id="lc-progress-bar" style="background:#B8893A;height:100%;width:0%;transition:width 0.3s ease;"></div>
-    </div>
-    <div id="lc-summary-body" style="font-size:0.9em;color:#5a6b70;">
-      Begin with the foundation categories below. Score yourself honestly — your answers are saved in this browser.
+  <!-- ===== TOP BAR: progress + nav ===== -->
+  <div id="lc-topbar" style="display:none;border-bottom:1px solid #e8dfc9;background:#FBF7F0;padding:14px 20px 12px 20px;position:sticky;top:0;z-index:10;">
+    <div style="max-width:680px;margin:0 auto;display:flex;align-items:center;gap:14px;">
+      <button id="lc-back" type="button" aria-label="Back" style="background:transparent;border:none;color:#5a6b70;font-size:1.3em;cursor:pointer;padding:4px 8px;font-family:inherit;line-height:1;border-radius:4px;">&larr;</button>
+      <div style="flex:1;min-width:0;">
+        <div id="lc-progress-label" style="font-size:0.74em;color:#8a9ba1;letter-spacing:0.04em;margin-bottom:6px;">Question 1 of 67 &middot; Top 10</div>
+        <div style="background:#f0e8d6;border-radius:999px;height:5px;overflow:hidden;">
+          <div id="lc-progress-bar" style="background:#B8893A;height:100%;width:0%;transition:width 0.3s ease;"></div>
+        </div>
+      </div>
+      <button id="lc-skip" type="button" style="background:transparent;border:none;color:#8a9ba1;font-size:0.78em;cursor:pointer;padding:4px 8px;font-family:inherit;letter-spacing:0.04em;text-transform:uppercase;font-weight:600;">Skip</button>
     </div>
   </div>
 
-  <!-- FREE SECTION HEADER -->
-  <div style="display:flex;align-items:center;gap:12px;margin:0 4px 14px 4px;">
-    <div style="font-family:Georgia,serif;font-size:1.15em;font-weight:700;color:#1F3A3D;">Foundation</div>
-    <div style="flex:1;height:1px;background:#e8dfc9;"></div>
-    <div style="font-size:0.72em;letter-spacing:0.1em;text-transform:uppercase;color:#16a34a;font-weight:600;">Free Access</div>
+  <!-- ===== CARD STAGE (single card visible at a time) ===== -->
+  <div id="lc-stage" style="flex:1;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px 60px 20px;">
+    <div id="lc-card" style="max-width:640px;width:100%;"><!-- card content rendered here --></div>
   </div>
 
-  <!-- FREE CATEGORIES CONTAINER -->
-  <div id="lc-categories-free" style="margin-bottom:32px;"></div>
-
-  <!-- LOCKED SECTION HEADER -->
-  <div style="display:flex;align-items:center;gap:12px;margin:0 4px 14px 4px;">
-    <div style="font-family:Georgia,serif;font-size:1.15em;font-weight:700;color:#1F3A3D;">The Full Library</div>
-    <div style="flex:1;height:1px;background:#e8dfc9;"></div>
-    <div style="font-size:0.72em;letter-spacing:0.1em;text-transform:uppercase;color:#B8893A;font-weight:600;">Members Only</div>
-  </div>
-  <p style="font-size:0.9em;color:#5a6b70;margin:0 4px 16px 4px;font-style:italic;">Ten more dimensions of leadership. Request access to unlock the complete assessment.</p>
-
-  <!-- LOCKED CATEGORIES CONTAINER -->
-  <div id="lc-categories-locked"></div>
-
-  <!-- FOOTER -->
-  <div style="text-align:center;margin-top:40px;padding-top:24px;border-top:1px solid #e8dfc9;">
-    <button id="lc-reset" type="button" style="background:transparent;border:1px solid #d4c5a8;color:#8a9ba1;padding:8px 20px;border-radius:4px;font-size:0.82em;cursor:pointer;font-family:inherit;letter-spacing:0.02em;">Reset answers</button>
-    <p style="font-family:Georgia,serif;font-style:italic;font-size:0.88em;color:#5a6b70;margin:24px 0 6px 0;">Stand on the shoulders of giants.</p>
-    <p style="font-size:0.75em;color:#8a9ba1;margin:0;">
+  <!-- ===== FOOTER ===== -->
+  <div style="text-align:center;padding:20px;border-top:1px solid #e8dfc9;background:#FBF7F0;">
+    <p style="font-family:Georgia,serif;font-style:italic;font-size:0.86em;color:#5a6b70;margin:0 0 6px 0;">Stand on the shoulders of giants.</p>
+    <p style="font-size:0.72em;color:#8a9ba1;margin:0;">
       Checklist by JD Meier &middot; <a href="https://sourcesofinsight.com/leadership-checklist/" target="_blank" rel="noopener" style="color:#B8893A;text-decoration:none;border-bottom:1px solid #e8dfc9;">sourcesofinsight.com</a>
     </p>
   </div>
 
 </div>
 
-<!-- ===== REQUEST ACCESS MODAL (mockup only) ===== -->
+<!-- ===== REQUEST ACCESS MODAL (mockup only, preserved from v0.2) ===== -->
 <div id="lc-modal-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(31,58,61,0.55);z-index:9998;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;">
   <div id="lc-modal" style="background:#FBF7F0;max-width:480px;width:100%;border-radius:8px;box-shadow:0 20px 50px rgba(31,58,61,0.25);overflow:hidden;position:relative;">
 
-    <!-- Modal close -->
     <button id="lc-modal-close" type="button" aria-label="Close" style="position:absolute;top:12px;right:12px;background:transparent;border:none;color:#8a9ba1;font-size:1.4em;cursor:pointer;width:32px;height:32px;border-radius:4px;font-family:inherit;line-height:1;">&times;</button>
 
-    <!-- Modal body (form state) -->
     <div id="lc-modal-form" style="padding:32px 28px 24px 28px;">
       <div style="font-size:0.7em;letter-spacing:0.18em;text-transform:uppercase;color:#B8893A;font-weight:600;margin-bottom:8px;">Members Only</div>
       <h2 style="font-family:Georgia,serif;font-size:1.55em;color:#1F3A3D;margin:0 0 10px 0;font-weight:700;line-height:1.25;">Request Access to the Full Library</h2>
@@ -110,9 +100,8 @@
       <p style="font-size:0.75em;color:#8a9ba1;margin:14px 0 0 0;text-align:center;">JD personally reviews each request.</p>
     </div>
 
-    <!-- Modal body (success state) -->
     <div id="lc-modal-success" style="display:none;padding:40px 28px;text-align:center;">
-      <div style="width:56px;height:56px;border-radius:50%;background:#16a34a;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:1.8em;margin-bottom:16px;">&#10003;</div>
+      <div style="width:56px;height:56px;border-radius:50%;background:#1F7A4F;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:1.8em;margin-bottom:16px;">&#10003;</div>
       <h2 style="font-family:Georgia,serif;font-size:1.5em;color:#1F3A3D;margin:0 0 10px 0;font-weight:700;">Thank you.</h2>
       <p style="font-size:0.95em;color:#5a6b70;margin:0 0 24px 0;line-height:1.5;">Your request has been received. JD will be in touch shortly with access details.</p>
       <button id="lc-modal-done" type="button" style="background:transparent;border:1px solid #d4c5a8;color:#5a6b70;padding:10px 24px;border-radius:4px;font-family:inherit;font-size:0.9em;cursor:pointer;">Close</button>
@@ -124,10 +113,11 @@
 <script>
 (function(){
   // ============================================================
-  // DATA — 15 categories. `locked: true` gates the category.
+  // DATA — only the 5 FREE foundation categories drive the wizard.
+  // The 10 locked categories appear (as a list) on the results screen.
   // ============================================================
-  var DATA = [
-    {id:'top10', name:'Top 10', tagline:'The essential practices', locked:false, items:[
+  var FREE = [
+    {id:'top10', name:'Top 10', tagline:'The essential practices', items:[
       'I seek first to understand, and I listen to people until they feel heard (empathic listening).',
       'I set the example others wish to emulate.',
       'I vary my leadership style to motivate when needed or direct based on the needs and abilities of the team.',
@@ -139,7 +129,7 @@
       'I create a compelling vision that inspires people to rally around.',
       'I take feedback and adapt in response.'
     ]},
-    {id:'core', name:'Core', tagline:'Foundational mindsets', locked:false, items:[
+    {id:'core', name:'Core', tagline:'Foundational mindsets', items:[
       'I am a self-starter and I take the initiative.',
       'I am approachable and encourage people to talk to me.',
       'I ask questions that help move the ball forward.',
@@ -155,7 +145,7 @@
       'I think beyond the moment.',
       'I treat people the way I want to be treated.'
     ]},
-    {id:'action', name:'Action', tagline:'From intent to outcome', locked:false, items:[
+    {id:'action', name:'Action', tagline:'From intent to outcome', items:[
       'I ask, \u201cWhat do we want to accomplish?\u201d',
       'I avoid inaction.',
       'I avoid unnecessary distractions.',
@@ -177,7 +167,7 @@
       'I take decisive action.',
       'I turn ideas into actions.'
     ]},
-    {id:'comm', name:'Communication', tagline:'How meaning travels', locked:false, items:[
+    {id:'comm', name:'Communication', tagline:'How meaning travels', items:[
       'I challenge ideas while respecting other opinions.',
       'I communicate clearly.',
       'I ask solution-focused questions, such as \u201cHow might we solve that?\u201d',
@@ -190,7 +180,7 @@
       'I let people know they\u2019ve been heard by replaying back what I\u2019ve heard.',
       'I listen with the intent to learn.'
     ]},
-    {id:'vision', name:'Vision, Mission, Values', tagline:'The compass that guides', locked:false, items:[
+    {id:'vision', name:'Vision, Mission, Values', tagline:'The compass that guides', items:[
       'I can communicate the mission in one line.',
       'I can prioritize effectively across competing concerns.',
       'I can relate the vision and mission to what people are doing.',
@@ -203,491 +193,538 @@
       'I know what my values are, and I communicate them to others.',
       'I live my values.',
       'I respect other peoples\u2019 opinions even if I disagree with them.'
-    ]},
-    // -------- LOCKED --------
-    {id:'change', name:'Change Leadership', tagline:'Leading through transformation', locked:true, items:[
-      'I anticipate and prepare for changes.',
-      'I build a sense of urgency for the most important things.',
-      'I communicate the what, why, who, how, and when of a change initiative.',
-      'I embrace change.',
-      'I put together the right coalition of people to help drive change.',
-      'I see change as an opportunity.',
-      'I socialize change in effective ways.',
-      'I stay flexible in my approach.',
-      'I understand and can articulate the risks of change and the risks of avoiding change.'
-    ]},
-    {id:'decisions', name:'Decisions & Choice', tagline:'The art of choosing well', locked:true, items:[
-      'I always factor the right thing to do and ethics when faced with choices and decisions.',
-      'I am not afraid to admit when I am wrong or someone has a better idea.',
-      'I am prepared to make tough decisions.',
-      'I build consensus for ideas.',
-      'I focus on doing business the right, ethical way.',
-      'I help people understand that until a decision is made it\u2019s ok to argue, but once made, everyone needs to row together.',
-      'I involve the right people for key decisions.',
-      'I know when to defer to other people for their expertise.',
-      'I recognize that not all people will agree with my decisions.'
-    ]},
-    {id:'diversity', name:'Diversity & Inclusion', tagline:'Strength in difference', locked:true, items:[
-      'I embrace diverse perspectives.',
-      'I acknowledge and leverage differences on the team.',
-      'I create an environment where people feel equal, and their opinion is valued.',
-      'I acknowledge that I have biases, and educate myself to do better.',
-      'I let others challenge my assumptions.',
-      'I approach feedback from a place of curiosity and positive intent.'
-    ]},
-    {id:'energy', name:'Energy & Motivation', tagline:'Igniting the fire in others', locked:true, items:[
-      'I build a team of energizers and weed out the energy sappers.',
-      'I demonstrate passion and enthusiasm.',
-      'I give others meaningful work and show them why it\u2019s meaningful.',
-      'I identify opportunities.',
-      'I invest in people\u2019s strengths to help them blossom.',
-      'I look to the future with possibility.',
-      'I make people feel valued for their contributions.',
-      'I make the workplace an enjoyable place to be.',
-      'I reward effort and results.',
-      'I reward people when they excel.',
-      'I spend more time in my strengths and less time in my weaknesses.',
-      'I take time to renew and recharge.'
-    ]},
-    {id:'influence', name:'Influence & Connection', tagline:'Trust as the currency', locked:true, items:[
-      'I balance connection and conviction.',
-      'I build trust through reliable actions.',
-      'I connect with people\u2019s values.',
-      'I demonstrate compassion for people and their situations.',
-      'I demonstrate empathy for the people.',
-      'I demonstrate empathy for the situation.',
-      'I establish rapport before trying to influence.',
-      'I read a situation to know who the owners, influencers, and decision makers are.',
-      'I recognize that I cannot please all the people all the time.'
-    ]},
-    {id:'learning', name:'Learning & Growth', tagline:'The lifelong climb', locked:true, items:[
-      'I am a lifelong learner.',
-      'I am open to feedback and constructive criticism.',
-      'I encourage healthy competition.',
-      'I encourage people to test themselves and stretch themselves.',
-      'I encourage testing results.',
-      'I find the lessons and carry the good ideas forward.',
-      'I find ways for people, processes, and products to grow and evolve.',
-      'I focus on strengths and limit liabilities.',
-      'I follow the growth.',
-      'I get feedback on my actions and the impact on people.',
-      'I give honest and constructive feedback.',
-      'I help people spend more time in their strengths.',
-      'I know and act according to my principles.',
-      'I know how to provide specific, accurate, timely, and relevant constructive feedback.',
-      'I know my weaknesses.',
-      'I model the best.',
-      'I own my mistakes.',
-      'I provide opportunities for my people to excel.',
-      'I seek input from multiple perspectives on how to improve.',
-      'I improve my weaknesses that are liabilities.',
-      'I use mistakes as learning opportunities.',
-      'I use tough situations as leadership opportunities.',
-      'When I make a mistake, I do what I can to make it right.'
-    ]},
-    {id:'problem', name:'Problem Solving', tagline:'Cutting through complexity', locked:true, items:[
-      'I ask clarifying questions about the problem.',
-      'I break down problems into smaller, easier, more manageable chunks.',
-      'I challenge myself to take on big hairy challenges.',
-      'I focus on the task and keep my ego out of it.',
-      'I frame the problem in a way that\u2019s actionable.',
-      'I help people focus on what they control.',
-      'I prioritize solving the right problems first.',
-      'I solve problems.'
-    ]},
-    {id:'strengths', name:'Strengths', tagline:'Building on what works', locked:true, items:[
-      'I am aware of my strengths and aware of the strengths of everyone on the team.',
-      'I bring out the best in everyone.',
-      'I focus on strength development.'
-    ]},
-    {id:'teamwork', name:'Teamwork', tagline:'The whole greater than its parts', locked:true, items:[
-      'I ask people what they need to be successful.',
-      'I break the work down in a way that can be managed effectively.',
-      'I clear roadblocks for people.',
-      'I create a sense of ownership.',
-      'I create ways for people to collaborate on problems.',
-      'I delegate tasks effectively.',
-      'I empower people to get their jobs done.',
-      'I encourage others to spend more time in their strengths and less time in their weaknesses.',
-      'I encourage others to take bold action.',
-      'I encourage people to share what they know and grow others.',
-      'I encourage people to team up.',
-      'I find a way for the team to win.',
-      'I foster team spirit.',
-      'I give others the leeway to do the work.',
-      'I help clarify expectations and roles.',
-      'I help find ways to make my team more productive.',
-      'I help manage and balance personalities on the team.',
-      'I help my people balance their work and life.',
-      'I help people find roles that unleash and bring out their best.',
-      'I help people internalize what success looks like.',
-      'I help people work together by focusing on the greater good.',
-      'I know how to get out of the way and let people do their jobs.',
-      'I know the strengths individuals bring to the table.',
-      'I know when to play quarterback and when to play coach.',
-      'I share what I learn to help make others great.',
-      'I set clear boundaries and allow people to act within those boundaries.',
-      'I value and encourage diversity on the team.',
-      'I value the unique contribution that each individual brings.'
-    ]},
-    {id:'wellness', name:'Wellness', tagline:'Sustainable greatness', locked:true, items:[
-      'I design for a sustainable pace and workload.',
-      'I prioritize diagnosis, treatment and recovery from serious health conditions over work demands.',
-      'I support the wellness needs of others and encourage others to maintain appropriate health-oriented regimens.',
-      'I innovate ways to import healthy activities and resources into the work environment.',
-      'I consider opportunities and threats to wellness when making business decisions and developing strategy.'
     ]}
   ];
+
+  // Locked categories shown on results screen (no items needed for v0.3, just metadata)
+  var LOCKED = [
+    {name:'Change Leadership',  tagline:'Leading through transformation', count:9},
+    {name:'Decisions & Choice', tagline:'The art of choosing well',       count:9},
+    {name:'Diversity & Inclusion', tagline:'Strength in difference',      count:6},
+    {name:'Energy & Motivation', tagline:'Igniting the fire in others',   count:12},
+    {name:'Influence & Connection', tagline:'Trust as the currency',      count:9},
+    {name:'Learning & Growth', tagline:'The lifelong climb',              count:23},
+    {name:'Problem Solving', tagline:'Cutting through complexity',        count:8},
+    {name:'Strengths', tagline:'Building on what works',                  count:3},
+    {name:'Teamwork', tagline:'The whole greater than its parts',         count:28},
+    {name:'Wellness', tagline:'Sustainable greatness',                    count:5}
+  ];
+
+  var SCALE = [
+    {val:1, label:'Rarely',       color:'#c0392b', desc:'Not yet a habit'},
+    {val:2, label:'Sometimes',    color:'#B8893A', desc:'Inconsistent or situational'},
+    {val:3, label:'Consistently', color:'#1F7A4F', desc:'A reliable practice'}
+  ];
+
+  // ============================================================
+  // FLOW — flatten free categories into a sequence of "cards":
+  //   intro
+  //   transition(cat A) → q(A,0) → q(A,1) ... q(A,n)
+  //   transition(cat B) → q(B,0) ... q(B,n)
+  //   ...
+  //   results
+  // ============================================================
+  var FLOW = [];
+  FLOW.push({type:'intro'});
+  for(var ci=0; ci<FREE.length; ci++){
+    FLOW.push({type:'transition', catIdx:ci});
+    for(var ii=0; ii<FREE[ci].items.length; ii++){
+      FLOW.push({type:'question', catIdx:ci, itemIdx:ii});
+    }
+  }
+  FLOW.push({type:'results'});
 
   // ============================================================
   // STATE
   // ============================================================
-  var STORAGE_KEY = 'lc_v2_state';
-  var state = {};
-  try { state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch(e){ state = {}; }
+  var STORAGE_KEY = 'lc_v3_state';
+  var state = {scores:{}, currentIndex:0};
+  try {
+    var raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if(raw && typeof raw === 'object'){
+      state.scores = raw.scores || {};
+      state.currentIndex = (typeof raw.currentIndex === 'number') ? raw.currentIndex : 0;
+      if(state.currentIndex < 0 || state.currentIndex >= FLOW.length) state.currentIndex = 0;
+    }
+  } catch(e){}
 
-  var SCALE = [
-    {val:1, label:'Rarely', color:'#c0392b'},
-    {val:2, label:'Sometimes', color:'#B8893A'},
-    {val:3, label:'Consistently', color:'#1F7A4F'}
-  ];
-
-  // ============================================================
-  // HELPERS
-  // ============================================================
-  function gi(id){ var w=document.getElementById('lc-wrap'); return w?w.querySelector('#'+id):document.getElementById(id); }
   function save(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){} }
-  function freeCats(){ return DATA.filter(function(c){return !c.locked;}); }
-  function lockedCats(){ return DATA.filter(function(c){return c.locked;}); }
-  function totalFreeItems(){ var n=0; var f=freeCats(); for(var i=0;i<f.length;i++){ n+=f[i].items.length; } return n; }
-  function answeredCount(){ var n=0; for(var k in state){ if(state.hasOwnProperty(k) && state[k]) n++; } return n; }
-  function categoryAvg(cat){
-    var sum=0, count=0;
-    for(var i=0;i<cat.items.length;i++){
-      var key=cat.id+'_'+i;
-      if(state[key]){ sum+=state[key]; count++; }
-    }
-    return count? {avg:sum/count, count:count, total:cat.items.length} : null;
+  function totalQuestions(){ var n=0; for(var i=0;i<FREE.length;i++) n+=FREE[i].items.length; return n; }
+  function answeredCount(){ var n=0; for(var k in state.scores){ if(state.scores.hasOwnProperty(k) && state.scores[k]) n++; } return n; }
+  function questionNumber(idx){
+    // 1-based question count up to flow position idx (only counts question cards)
+    var n=0;
+    for(var i=0;i<=idx && i<FLOW.length;i++){ if(FLOW[i].type==='question') n++; }
+    return n;
   }
 
   // ============================================================
-  // RENDER — FREE CATEGORIES
+  // DOM HELPERS (CSP-safe building)
   // ============================================================
-  function renderFreeCategories(){
-    var container = gi('lc-categories-free');
-    container.innerHTML = '';
-    var cats = freeCats();
-    for(var i=0;i<cats.length;i++){
-      var cat = cats[i];
-      var section = document.createElement('div');
-      section.style.cssText = 'border:1px solid #e8dfc9;border-radius:6px;margin-bottom:10px;overflow:hidden;background:#fff;';
-
-      var header = document.createElement('button');
-      header.type = 'button';
-      header.setAttribute('data-cat-toggle', cat.id);
-      header.style.cssText = 'width:100%;display:flex;justify-content:space-between;align-items:center;padding:16px 18px;background:#fff;border:none;cursor:pointer;font-family:inherit;text-align:left;';
-
-      var headerLeft = document.createElement('div');
-      headerLeft.style.cssText = 'display:flex;align-items:center;gap:12px;flex:1;min-width:0;';
-      var caret = document.createElement('span');
-      caret.setAttribute('data-caret', cat.id);
-      caret.style.cssText = 'display:inline-block;width:10px;color:#B8893A;font-size:0.75em;transition:transform 0.2s;flex-shrink:0;';
-      caret.textContent = '\u25B6';
-
-      var titleBlock = document.createElement('div');
-      titleBlock.style.cssText = 'min-width:0;';
-      var title = document.createElement('div');
-      title.style.cssText = 'font-family:Georgia,serif;font-weight:700;color:#1F3A3D;font-size:1.05em;line-height:1.2;';
-      title.textContent = cat.name;
-      var tagline = document.createElement('div');
-      tagline.style.cssText = 'font-size:0.78em;color:#8a9ba1;font-style:italic;margin-top:2px;';
-      tagline.textContent = cat.tagline;
-      titleBlock.appendChild(title);
-      titleBlock.appendChild(tagline);
-
-      headerLeft.appendChild(caret);
-      headerLeft.appendChild(titleBlock);
-
-      var headerRight = document.createElement('span');
-      headerRight.setAttribute('data-cat-meta', cat.id);
-      headerRight.style.cssText = 'font-size:0.78em;color:#8a9ba1;flex-shrink:0;margin-left:8px;';
-      header.appendChild(headerLeft);
-      header.appendChild(headerRight);
-
-      var body = document.createElement('div');
-      body.setAttribute('data-cat-body', cat.id);
-      body.style.cssText = 'display:none;padding:4px 18px 18px 18px;border-top:1px solid #f5ecd6;';
-
-      for(var j=0;j<cat.items.length;j++){
-        var itemKey = cat.id + '_' + j;
-        var row = document.createElement('div');
-        row.style.cssText = 'padding:14px 0;border-bottom:1px solid #f5ecd6;';
-
-        var prompt = document.createElement('div');
-        prompt.style.cssText = 'font-size:0.93em;color:#2c3e44;margin-bottom:10px;line-height:1.5;';
-        prompt.textContent = 'As a leader, ' + cat.items[j];
-        row.appendChild(prompt);
-
-        var btnRow = document.createElement('div');
-        btnRow.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
-        for(var s=0;s<SCALE.length;s++){
-          var b = document.createElement('button');
-          b.type = 'button';
-          b.setAttribute('data-key', itemKey);
-          b.setAttribute('data-val', SCALE[s].val);
-          var selected = (state[itemKey] === SCALE[s].val);
-          b.style.cssText = 'flex:1;min-width:90px;padding:9px 10px;border-radius:4px;font-family:inherit;font-size:0.82em;cursor:pointer;transition:all 0.15s;letter-spacing:0.02em;' +
-            (selected
-              ? 'background:'+SCALE[s].color+';color:#fff;border:1px solid '+SCALE[s].color+';font-weight:600;'
-              : 'background:#FBF7F0;color:#5a6b70;border:1px solid #d4c5a8;');
-          b.textContent = SCALE[s].label;
-          btnRow.appendChild(b);
-        }
-        row.appendChild(btnRow);
-        body.appendChild(row);
-      }
-
-      section.appendChild(header);
-      section.appendChild(body);
-      container.appendChild(section);
-    }
-    updateCategoryMeta();
+  function el(tag, styles, attrs, text){
+    var e = document.createElement(tag);
+    if(styles) e.style.cssText = styles;
+    if(attrs){ for(var k in attrs){ if(attrs.hasOwnProperty(k)) e.setAttribute(k, attrs[k]); } }
+    if(text != null) e.textContent = text;
+    return e;
   }
+  function gi(id){ return document.getElementById(id); }
 
   // ============================================================
-  // RENDER — LOCKED CATEGORIES
+  // RENDER — top bar
   // ============================================================
-  function renderLockedCategories(){
-    var container = gi('lc-categories-locked');
-    container.innerHTML = '';
-    var cats = lockedCats();
-    for(var i=0;i<cats.length;i++){
-      var cat = cats[i];
-      var section = document.createElement('div');
-      section.setAttribute('data-locked-cat', cat.id);
-      section.style.cssText = 'border:1px solid #e8dfc9;border-radius:6px;margin-bottom:8px;background:#f5ecd6;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;gap:12px;transition:background 0.15s;';
+  function renderTopbar(){
+    var item = FLOW[state.currentIndex];
+    var bar = gi('lc-topbar');
+    if(!item || item.type === 'intro' || item.type === 'results'){
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = 'block';
 
-      var left = document.createElement('div');
-      left.style.cssText = 'display:flex;align-items:center;gap:12px;flex:1;min-width:0;';
+    // Hide back button on the very first non-intro card (transition for first cat)
+    var backBtn = gi('lc-back');
+    backBtn.style.visibility = (state.currentIndex <= 1) ? 'hidden' : 'visible';
 
-      var lock = document.createElement('div');
-      lock.style.cssText = 'width:32px;height:32px;border-radius:50%;background:#e8dfc9;color:#B8893A;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.95em;';
-      lock.innerHTML = '&#128274;'; // padlock emoji
+    // Skip only meaningful on question cards
+    var skipBtn = gi('lc-skip');
+    skipBtn.style.visibility = (item.type === 'question') ? 'visible' : 'hidden';
 
-      var titleBlock = document.createElement('div');
-      titleBlock.style.cssText = 'min-width:0;';
-      var title = document.createElement('div');
-      title.style.cssText = 'font-family:Georgia,serif;font-weight:700;color:#5a6b70;font-size:1.02em;line-height:1.2;';
-      title.textContent = cat.name;
-      var tagline = document.createElement('div');
-      tagline.style.cssText = 'font-size:0.78em;color:#8a9ba1;font-style:italic;margin-top:2px;';
-      tagline.textContent = cat.tagline + '  \u00b7  ' + cat.items.length + ' practices';
-      titleBlock.appendChild(title);
-      titleBlock.appendChild(tagline);
-
-      left.appendChild(lock);
-      left.appendChild(titleBlock);
-
-      var cta = document.createElement('span');
-      cta.style.cssText = 'font-size:0.78em;color:#B8893A;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;flex-shrink:0;';
-      cta.textContent = 'Request Access \u2192';
-
-      section.appendChild(left);
-      section.appendChild(cta);
-      container.appendChild(section);
+    var label = gi('lc-progress-label');
+    var progress = gi('lc-progress-bar');
+    var total = totalQuestions();
+    if(item.type === 'question'){
+      var qn = questionNumber(state.currentIndex);
+      label.textContent = 'Question ' + qn + ' of ' + total + ' \u00b7 ' + FREE[item.catIdx].name;
+      progress.style.width = Math.round((qn/total)*100) + '%';
+    } else if(item.type === 'transition'){
+      // count of completed questions before this transition
+      var done = 0;
+      for(var i=0;i<state.currentIndex;i++){ if(FLOW[i].type==='question') done++; }
+      label.textContent = 'Chapter ' + (item.catIdx + 1) + ' of ' + FREE.length + ' \u00b7 ' + FREE[item.catIdx].name;
+      progress.style.width = Math.round((done/total)*100) + '%';
     }
   }
 
   // ============================================================
-  // META + SUMMARY
+  // RENDER — card content per flow type
   // ============================================================
-  function updateCategoryMeta(){
-    var cats = freeCats();
-    for(var i=0;i<cats.length;i++){
-      var cat = cats[i];
-      var metaEl = document.querySelector('[data-cat-meta="'+cat.id+'"]');
-      if(!metaEl) continue;
-      var stat = categoryAvg(cat);
-      if(stat){
-        metaEl.textContent = stat.count+'/'+stat.total+' \u00b7 avg '+stat.avg.toFixed(1);
-      } else {
-        metaEl.textContent = '0/'+cat.items.length;
-      }
+  function renderCard(){
+    var card = gi('lc-card');
+    card.innerHTML = '';
+    var item = FLOW[state.currentIndex];
+    if(!item) return;
+
+    if(item.type === 'intro'){
+      renderIntro(card);
+    } else if(item.type === 'transition'){
+      renderTransition(card, item.catIdx);
+    } else if(item.type === 'question'){
+      renderQuestion(card, item.catIdx, item.itemIdx);
+    } else if(item.type === 'results'){
+      renderResults(card);
     }
+    renderTopbar();
+    window.scrollTo({top:0, behavior:'instant'});
   }
 
-  function updateSummary(){
-    var total = totalFreeItems();
+  // ---------- INTRO ----------
+  function renderIntro(card){
+    var hasProgress = answeredCount() > 0;
+
+    var wrap = el('div', 'text-align:center;padding:40px 20px 20px 20px;');
+
+    var eyebrow = el('div', 'font-size:0.74em;letter-spacing:0.18em;text-transform:uppercase;color:#B8893A;font-weight:600;margin-bottom:14px;', null, 'Sources of Insight');
+    var h1 = el('h1', 'font-family:Georgia,"Times New Roman",serif;font-size:2.4em;font-weight:700;color:#1F3A3D;margin:0 0 14px 0;letter-spacing:-0.01em;line-height:1.15;', null, "The Leader's Checklist");
+    var quote = el('p', 'font-style:italic;color:#5a6b70;font-size:1.05em;margin:0 0 8px 0;line-height:1.5;max-width:520px;margin-left:auto;margin-right:auto;');
+    quote.innerHTML = '\u201cIf your actions inspire others to dream more, learn more, do more and become more, you are a leader.\u201d';
+    var attr = el('p', 'font-size:0.85em;color:#8a9ba1;margin:0 0 36px 0;', null, '\u2014 John Quincy Adams');
+
+    var divider = el('div', 'height:1px;background:linear-gradient(to right,transparent,#d4c5a8,transparent);margin:0 auto 32px auto;max-width:240px;');
+
+    var howWrap = el('div', 'background:#fff;border:1px solid #e8dfc9;border-radius:8px;padding:24px 24px 20px 24px;text-align:left;margin:0 auto 28px auto;max-width:480px;box-shadow:0 1px 3px rgba(31,58,61,0.04);');
+    var howTitle = el('div', 'font-family:Georgia,serif;font-weight:700;font-size:1.1em;color:#1F3A3D;margin-bottom:14px;', null, 'How this works');
+
+    function bullet(boldText, restText){
+      var row = el('div', 'display:flex;gap:10px;margin-bottom:10px;font-size:0.92em;color:#2c3e44;line-height:1.5;');
+      var dot = el('span', 'color:#B8893A;font-weight:700;flex-shrink:0;', null, '\u2022');
+      var t = el('span', null, null, '');
+      var b = el('strong', 'color:#1F3A3D;', null, boldText);
+      t.appendChild(b);
+      t.appendChild(document.createTextNode(restText));
+      row.appendChild(dot);
+      row.appendChild(t);
+      return row;
+    }
+
+    howWrap.appendChild(howTitle);
+    howWrap.appendChild(bullet('67 questions', ' across 5 foundation categories.'));
+    howWrap.appendChild(bullet('One at a time. ', 'Score each on a 3-point scale: Rarely, Sometimes, or Consistently.'));
+    howWrap.appendChild(bullet('About 10 minutes.', ' Your answers save automatically in this browser.'));
+    howWrap.appendChild(bullet('Honesty over performance.', ' This is for you, not anyone else.'));
+
+    var startBtn = el('button', 'background:#B8893A;color:#fff;border:none;padding:14px 36px;border-radius:4px;font-family:inherit;font-size:1em;font-weight:600;cursor:pointer;letter-spacing:0.02em;transition:background 0.15s;min-width:200px;', {type:'button', 'data-action':'start'}, hasProgress ? 'Continue' : 'Begin');
+
+    wrap.appendChild(eyebrow);
+    wrap.appendChild(h1);
+    wrap.appendChild(quote);
+    wrap.appendChild(attr);
+    wrap.appendChild(divider);
+    wrap.appendChild(howWrap);
+    wrap.appendChild(startBtn);
+
+    if(hasProgress){
+      var resetLink = el('button', 'background:transparent;border:none;color:#8a9ba1;font-size:0.82em;cursor:pointer;font-family:inherit;margin-top:14px;text-decoration:underline;display:block;margin-left:auto;margin-right:auto;', {type:'button', 'data-action':'restart'}, 'Start over');
+      wrap.appendChild(resetLink);
+    }
+
+    card.appendChild(wrap);
+  }
+
+  // ---------- CATEGORY TRANSITION ----------
+  function renderTransition(card, catIdx){
+    var cat = FREE[catIdx];
+    var wrap = el('div', 'text-align:center;padding:60px 20px 20px 20px;');
+
+    var eyebrow = el('div', 'font-size:0.74em;letter-spacing:0.18em;text-transform:uppercase;color:#B8893A;font-weight:600;margin-bottom:14px;', null, 'Chapter ' + (catIdx+1) + ' of ' + FREE.length);
+    var h2 = el('h2', 'font-family:Georgia,serif;font-size:2.2em;font-weight:700;color:#1F3A3D;margin:0 0 12px 0;letter-spacing:-0.01em;line-height:1.2;', null, cat.name);
+    var tagline = el('p', 'font-style:italic;color:#5a6b70;font-size:1.1em;margin:0 0 8px 0;', null, cat.tagline);
+    var count = el('p', 'font-size:0.86em;color:#8a9ba1;margin:0 0 40px 0;', null, cat.items.length + ' practice' + (cat.items.length===1?'':'s'));
+
+    var divider = el('div', 'height:1px;background:linear-gradient(to right,transparent,#d4c5a8,transparent);margin:0 auto 32px auto;max-width:200px;');
+
+    var btn = el('button', 'background:#B8893A;color:#fff;border:none;padding:13px 32px;border-radius:4px;font-family:inherit;font-size:0.95em;font-weight:600;cursor:pointer;letter-spacing:0.02em;min-width:180px;', {type:'button', 'data-action':'next'}, 'Begin Chapter');
+
+    wrap.appendChild(eyebrow);
+    wrap.appendChild(h2);
+    wrap.appendChild(tagline);
+    wrap.appendChild(count);
+    wrap.appendChild(divider);
+    wrap.appendChild(btn);
+
+    card.appendChild(wrap);
+  }
+
+  // ---------- QUESTION ----------
+  function renderQuestion(card, catIdx, itemIdx){
+    var cat = FREE[catIdx];
+    var itemText = cat.items[itemIdx];
+    var key = cat.id + '_' + itemIdx;
+    var current = state.scores[key];
+
+    var wrap = el('div', 'padding:20px 0;');
+
+    var catLabel = el('div', 'font-size:0.74em;letter-spacing:0.14em;text-transform:uppercase;color:#B8893A;font-weight:600;margin-bottom:18px;text-align:center;', null, cat.name);
+
+    var prompt = el('h2', 'font-family:Georgia,serif;font-size:1.6em;font-weight:600;color:#1F3A3D;margin:0 0 36px 0;line-height:1.4;text-align:center;letter-spacing:-0.005em;');
+    prompt.innerHTML = '<span style="color:#8a9ba1;font-style:italic;font-weight:500;font-size:0.78em;display:block;margin-bottom:10px;letter-spacing:0.04em;">As a leader,</span>' + escapeHtml(itemText);
+
+    var btnRow = el('div', 'display:flex;flex-direction:column;gap:10px;max-width:420px;margin:0 auto;');
+    for(var s=0;s<SCALE.length;s++){
+      var sc = SCALE[s];
+      var selected = (current === sc.val);
+      var b = el('button',
+        'display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:6px;font-family:inherit;cursor:pointer;transition:all 0.15s;text-align:left;width:100%;' +
+        (selected
+          ? 'background:'+sc.color+';color:#fff;border:2px solid '+sc.color+';'
+          : 'background:#fff;color:#2c3e44;border:2px solid #e8dfc9;'),
+        {type:'button', 'data-action':'score', 'data-key':key, 'data-val':String(sc.val)},
+        null
+      );
+      var num = el('span',
+        'flex-shrink:0;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.88em;' +
+        (selected
+          ? 'background:rgba(255,255,255,0.22);color:#fff;'
+          : 'background:'+sc.color+';color:#fff;'),
+        null, String(sc.val));
+      var textBlock = el('span', 'flex:1;');
+      var lbl = el('span', 'display:block;font-weight:600;font-size:1em;line-height:1.2;' + (selected?'':'color:#1F3A3D;'), null, sc.label);
+      var desc = el('span', 'display:block;font-size:0.82em;margin-top:2px;' + (selected?'color:rgba(255,255,255,0.85);':'color:#8a9ba1;'), null, sc.desc);
+      textBlock.appendChild(lbl);
+      textBlock.appendChild(desc);
+      b.appendChild(num);
+      b.appendChild(textBlock);
+      btnRow.appendChild(b);
+    }
+
+    var hint = el('p', 'text-align:center;font-size:0.78em;color:#8a9ba1;margin:24px 0 0 0;', null, 'Tip: press 1, 2, or 3 on your keyboard.');
+
+    wrap.appendChild(catLabel);
+    wrap.appendChild(prompt);
+    wrap.appendChild(btnRow);
+    wrap.appendChild(hint);
+    card.appendChild(wrap);
+  }
+
+  // ---------- RESULTS ----------
+  function renderResults(card){
+    var wrap = el('div', 'padding:20px 0;');
+
+    var eyebrow = el('div', 'font-size:0.74em;letter-spacing:0.18em;text-transform:uppercase;color:#B8893A;font-weight:600;margin-bottom:12px;text-align:center;', null, 'Foundation Complete');
+    var h1 = el('h1', 'font-family:Georgia,serif;font-size:2.2em;font-weight:700;color:#1F3A3D;margin:0 0 12px 0;text-align:center;line-height:1.2;', null, 'Your Snapshot');
+    var lede = el('p', 'text-align:center;color:#5a6b70;font-size:0.98em;margin:0 0 32px 0;line-height:1.5;', null, 'A view of where you stand across the foundation. Use it as a starting point for reflection.');
+
+    // Snapshot card
+    var snap = el('div', 'background:#fff;border:1px solid #e8dfc9;border-left:4px solid #B8893A;border-radius:6px;padding:24px;margin-bottom:24px;box-shadow:0 1px 3px rgba(31,58,61,0.04);');
+
+    var total = totalQuestions();
     var answered = answeredCount();
     var pct = total ? Math.round((answered/total)*100) : 0;
-    gi('lc-progress-text').textContent = pct+'% complete \u00b7 '+answered+'/'+total;
-    gi('lc-progress-bar').style.width = pct+'%';
 
-    var body = gi('lc-summary-body');
-    if(answered === 0){
-      body.innerHTML = 'Begin with the foundation categories below. Score yourself honestly &mdash; your answers are saved in this browser.';
-      return;
-    }
+    var pctRow = el('div', 'display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px;');
+    var pctLeft = el('div', 'font-family:Georgia,serif;font-weight:700;font-size:1.1em;color:#1F3A3D;', null, 'Completion');
+    var pctRight = el('div', 'font-size:0.86em;color:#8a9ba1;', null, pct + '% \u00b7 ' + answered + '/' + total + ' answered');
+    pctRow.appendChild(pctLeft);
+    pctRow.appendChild(pctRight);
+    snap.appendChild(pctRow);
 
-    var cats = freeCats();
+    var bar = el('div', 'background:#f0e8d6;border-radius:999px;height:6px;overflow:hidden;margin-bottom:24px;');
+    var fill = el('div', 'background:#B8893A;height:100%;width:'+pct+'%;');
+    bar.appendChild(fill);
+    snap.appendChild(bar);
+
+    // Compute averages per category
     var ranked = [];
-    for(var i=0;i<cats.length;i++){
-      var stat = categoryAvg(cats[i]);
-      if(stat && stat.count >= Math.min(3, cats[i].items.length)){
-        ranked.push({name:cats[i].name, avg:stat.avg});
+    for(var i=0;i<FREE.length;i++){
+      var cat = FREE[i];
+      var sum=0, count=0;
+      for(var j=0;j<cat.items.length;j++){
+        var k = cat.id + '_' + j;
+        if(state.scores[k]){ sum += state.scores[k]; count++; }
+      }
+      if(count >= Math.min(3, cat.items.length)){
+        ranked.push({name:cat.name, avg: sum/count, count:count, total:cat.items.length});
       }
     }
+
     if(ranked.length < 2){
-      body.innerHTML = 'Answer a few items in at least two foundation categories to surface patterns.';
-      return;
-    }
-    ranked.sort(function(a,b){ return b.avg - a.avg; });
-    var top = ranked.slice(0, Math.min(3, ranked.length));
-    var bottom = ranked.slice(-Math.min(3, ranked.length)).reverse();
+      var empty = el('p', 'font-size:0.92em;color:#5a6b70;margin:0;', null, 'Answer at least 3 items in 2 or more categories to surface patterns.');
+      snap.appendChild(empty);
+    } else {
+      ranked.sort(function(a,b){ return b.avg - a.avg; });
+      var top = ranked.slice(0, Math.min(3, ranked.length));
+      var bottom = ranked.slice(-Math.min(3, ranked.length)).reverse();
 
-    function listHtml(arr){
-      var s = '';
-      for(var i=0;i<arr.length;i++){
-        s += '<li style="margin:3px 0;color:#2c3e44;">'+arr[i].name+' <span style="color:#8a9ba1;font-size:0.85em;">('+arr[i].avg.toFixed(1)+')</span></li>';
+      var grid = el('div', 'display:flex;gap:24px;flex-wrap:wrap;');
+
+      function buildCol(headingText, headingColor, arr){
+        var col = el('div', 'flex:1;min-width:200px;');
+        var h = el('div', 'font-size:0.74em;text-transform:uppercase;letter-spacing:0.1em;color:'+headingColor+';font-weight:700;margin-bottom:10px;', null, headingText);
+        col.appendChild(h);
+        var ul = el('ul', 'margin:0;padding-left:18px;font-size:0.92em;color:#2c3e44;list-style:disc;');
+        for(var i=0;i<arr.length;i++){
+          var li = el('li', 'margin:4px 0;');
+          var nm = el('span', 'color:#1F3A3D;', null, arr[i].name);
+          var sp = el('span', 'color:#8a9ba1;font-size:0.88em;margin-left:6px;', null, '(' + arr[i].avg.toFixed(1) + ')');
+          li.appendChild(nm);
+          li.appendChild(sp);
+          ul.appendChild(li);
+        }
+        col.appendChild(ul);
+        return col;
       }
-      return s;
+
+      grid.appendChild(buildCol('Top Strengths', '#1F7A4F', top));
+      grid.appendChild(buildCol('Growth Areas', '#c0392b', bottom));
+      snap.appendChild(grid);
     }
 
-    body.innerHTML =
-      '<div style="display:flex;gap:20px;flex-wrap:wrap;">' +
-        '<div style="flex:1;min-width:180px;">' +
-          '<div style="font-size:0.72em;text-transform:uppercase;letter-spacing:0.1em;color:#1F7A4F;font-weight:700;margin-bottom:6px;">Top Strengths</div>' +
-          '<ul style="margin:0;padding-left:18px;font-size:0.9em;">' + listHtml(top) + '</ul>' +
-        '</div>' +
-        '<div style="flex:1;min-width:180px;">' +
-          '<div style="font-size:0.72em;text-transform:uppercase;letter-spacing:0.1em;color:#c0392b;font-weight:700;margin-bottom:6px;">Growth Areas</div>' +
-          '<ul style="margin:0;padding-left:18px;font-size:0.9em;">' + listHtml(bottom) + '</ul>' +
-        '</div>' +
-      '</div>';
+    wrap.appendChild(eyebrow);
+    wrap.appendChild(h1);
+    wrap.appendChild(lede);
+    wrap.appendChild(snap);
+
+    // ---------- LOCKED CTA ----------
+    var ctaWrap = el('div', 'background:#fff;border:1px solid #e8dfc9;border-radius:8px;padding:28px 24px;margin-bottom:24px;');
+    var ctaEyebrow = el('div', 'font-size:0.7em;letter-spacing:0.18em;text-transform:uppercase;color:#B8893A;font-weight:600;margin-bottom:8px;', null, 'The Full Library');
+    var ctaH = el('h3', 'font-family:Georgia,serif;font-size:1.4em;color:#1F3A3D;margin:0 0 10px 0;font-weight:700;line-height:1.25;', null, 'Ten more dimensions await.');
+    var ctaP = el('p', 'font-size:0.94em;color:#5a6b70;margin:0 0 18px 0;line-height:1.5;', null, 'You\u2019ve completed the foundation. The full library opens up the rest of the leader\u2019s practice \u2014 over 100 more practices across ten dimensions.');
+
+    // small grid of locked cats
+    var lockedList = el('div', 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;');
+    for(var li=0; li<LOCKED.length; li++){
+      var pill = el('span', 'display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#f5ecd6;border:1px solid #e8dfc9;border-radius:999px;font-size:0.8em;color:#5a6b70;', null, '');
+      var lockIcon = el('span', 'color:#B8893A;font-size:0.88em;', null, '\uD83D\uDD12');
+      var nm = el('span', null, null, LOCKED[li].name);
+      pill.appendChild(lockIcon);
+      pill.appendChild(nm);
+      lockedList.appendChild(pill);
+    }
+
+    var requestBtn = el('button', 'background:#B8893A;color:#fff;border:none;padding:13px 28px;border-radius:4px;font-family:inherit;font-size:0.95em;font-weight:600;cursor:pointer;letter-spacing:0.02em;', {type:'button', 'data-action':'open-modal'}, 'Request Access \u2192');
+
+    ctaWrap.appendChild(ctaEyebrow);
+    ctaWrap.appendChild(ctaH);
+    ctaWrap.appendChild(ctaP);
+    ctaWrap.appendChild(lockedList);
+    ctaWrap.appendChild(requestBtn);
+
+    wrap.appendChild(ctaWrap);
+
+    // ---------- secondary actions ----------
+    var actions = el('div', 'text-align:center;margin-top:8px;');
+    var reviewBtn = el('button', 'background:transparent;border:1px solid #d4c5a8;color:#5a6b70;padding:10px 22px;border-radius:4px;font-family:inherit;font-size:0.88em;cursor:pointer;margin:4px;', {type:'button', 'data-action':'review'}, 'Review my answers');
+    var restartBtn = el('button', 'background:transparent;border:none;color:#8a9ba1;font-size:0.82em;cursor:pointer;font-family:inherit;margin:4px;text-decoration:underline;', {type:'button', 'data-action':'restart'}, 'Start over');
+    actions.appendChild(reviewBtn);
+    actions.appendChild(restartBtn);
+    wrap.appendChild(actions);
+
+    card.appendChild(wrap);
+  }
+
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
+  function go(idx){
+    if(idx < 0) idx = 0;
+    if(idx > FLOW.length - 1) idx = FLOW.length - 1;
+    state.currentIndex = idx;
+    save();
+    renderCard();
+  }
+  function next(){ go(state.currentIndex + 1); }
+  function back(){ go(state.currentIndex - 1); }
+
+  function scoreCurrent(val){
+    var item = FLOW[state.currentIndex];
+    if(!item || item.type !== 'question') return;
+    var cat = FREE[item.catIdx];
+    var key = cat.id + '_' + item.itemIdx;
+    state.scores[key] = val;
+    save();
+
+    // Visual feedback then auto-advance
+    var btns = gi('lc-card').querySelectorAll('[data-action="score"]');
+    for(var i=0;i<btns.length;i++){
+      var bv = parseInt(btns[i].getAttribute('data-val'),10);
+      var sc = SCALE[bv-1];
+      var sel = (bv === val);
+      btns[i].style.cssText = 'display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:6px;font-family:inherit;cursor:pointer;transition:all 0.15s;text-align:left;width:100%;' +
+        (sel
+          ? 'background:'+sc.color+';color:#fff;border:2px solid '+sc.color+';'
+          : 'background:#fff;color:#2c3e44;border:2px solid #e8dfc9;');
+    }
+    setTimeout(next, 220);
+  }
+
+  function restartAll(){
+    if(!confirm('Start over? Your current answers will be cleared.')) return;
+    state = {scores:{}, currentIndex:0};
+    save();
+    renderCard();
   }
 
   // ============================================================
   // MODAL
   // ============================================================
   function openModal(){
-    var ov = document.getElementById('lc-modal-overlay');
+    var ov = gi('lc-modal-overlay');
     ov.style.display = 'flex';
-    // reset to form state
-    document.getElementById('lc-modal-form').style.display = 'block';
-    document.getElementById('lc-modal-success').style.display = 'none';
+    gi('lc-modal-form').style.display = 'block';
+    gi('lc-modal-success').style.display = 'none';
     document.body.style.overflow = 'hidden';
   }
   function closeModal(){
-    var ov = document.getElementById('lc-modal-overlay');
-    ov.style.display = 'none';
+    gi('lc-modal-overlay').style.display = 'none';
     document.body.style.overflow = '';
   }
   function submitModal(){
-    // mockup: no validation, no fetch — just flip to success state
-    document.getElementById('lc-modal-form').style.display = 'none';
-    document.getElementById('lc-modal-success').style.display = 'block';
+    gi('lc-modal-form').style.display = 'none';
+    gi('lc-modal-success').style.display = 'block';
   }
 
   // ============================================================
-  // EVENT DELEGATION (CSP-safe)
+  // EVENTS (delegated)
   // ============================================================
-  function findAttrUp(node, attr){
-    var p = node;
-    while(p && p !== document){
-      if(p.getAttribute && p.getAttribute(attr) !== null) return p.getAttribute(attr);
-      p = p.parentNode;
-    }
-    return null;
-  }
-
   function onWrapClick(e){
     var t = e.target;
     if(!t) return;
 
-    // Score button
-    var key = t.getAttribute && t.getAttribute('data-key');
-    var val = t.getAttribute && t.getAttribute('data-val');
-    if(key && val){
-      var v = parseInt(val, 10);
-      if(state[key] === v){ delete state[key]; } else { state[key] = v; }
-      save();
-      var siblings = t.parentNode.querySelectorAll('[data-key="'+key+'"]');
-      for(var i=0;i<siblings.length;i++){
-        var sv = parseInt(siblings[i].getAttribute('data-val'),10);
-        var sel = (state[key] === sv);
-        var color = SCALE[sv-1].color;
-        siblings[i].style.cssText = 'flex:1;min-width:90px;padding:9px 10px;border-radius:4px;font-family:inherit;font-size:0.82em;cursor:pointer;transition:all 0.15s;letter-spacing:0.02em;' +
-          (sel
-            ? 'background:'+color+';color:#fff;border:1px solid '+color+';font-weight:600;'
-            : 'background:#FBF7F0;color:#5a6b70;border:1px solid #d4c5a8;');
+    // bubble up to find a [data-action] node
+    var actionNode = t;
+    var action = null, key=null, val=null;
+    while(actionNode && actionNode !== document){
+      if(actionNode.getAttribute){
+        action = actionNode.getAttribute('data-action');
+        if(action) break;
       }
-      updateCategoryMeta();
-      updateSummary();
-      return;
+      actionNode = actionNode.parentNode;
     }
 
-    // Locked category click (anywhere on the row)
-    var lockedId = findAttrUp(t, 'data-locked-cat');
-    if(lockedId){
-      openModal();
+    if(action === 'score'){
+      val = parseInt(actionNode.getAttribute('data-val'), 10);
+      scoreCurrent(val);
       return;
     }
-
-    // Free category toggle
-    var catId = findAttrUp(t, 'data-cat-toggle');
-    if(catId){
-      var body = document.querySelector('[data-cat-body="'+catId+'"]');
-      var caret = document.querySelector('[data-caret="'+catId+'"]');
-      if(body){
-        var open = body.style.display === 'block';
-        var allBodies = document.querySelectorAll('[data-cat-body]');
-        for(var k=0;k<allBodies.length;k++){ allBodies[k].style.display='none'; }
-        var allCarets = document.querySelectorAll('[data-caret]');
-        for(var m=0;m<allCarets.length;m++){ allCarets[m].style.transform='rotate(0deg)'; }
-        if(!open){
-          body.style.display = 'block';
-          if(caret) caret.style.transform = 'rotate(90deg)';
-        }
+    if(action === 'next'){ next(); return; }
+    if(action === 'start'){ next(); return; }
+    if(action === 'restart'){ restartAll(); return; }
+    if(action === 'open-modal'){ openModal(); return; }
+    if(action === 'review'){
+      // jump back to first question
+      for(var i=0;i<FLOW.length;i++){
+        if(FLOW[i].type === 'question'){ go(i); return; }
       }
       return;
     }
 
-    // Reset
-    if(t.id === 'lc-reset'){
-      if(confirm('Clear all your answers? This cannot be undone.')){
-        state = {};
-        save();
-        renderFreeCategories();
-        updateSummary();
-      }
-    }
+    // top bar buttons
+    if(t.id === 'lc-back' || (t.parentNode && t.parentNode.id === 'lc-back')){ back(); return; }
+    if(t.id === 'lc-skip' || (t.parentNode && t.parentNode.id === 'lc-skip')){ next(); return; }
   }
 
   function onModalClick(e){
     var t = e.target;
     if(!t) return;
-    // close if overlay clicked or close/done button
     if(t.id === 'lc-modal-overlay' || t.id === 'lc-modal-close' || t.id === 'lc-modal-done'){
-      closeModal();
+      closeModal(); return;
+    }
+    if(t.id === 'lc-modal-submit'){ submitModal(); return; }
+  }
+
+  function onKey(e){
+    // ignore if typing in a form field
+    var tag = (e.target && e.target.tagName) || '';
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    // ignore if modal is open
+    if(gi('lc-modal-overlay').style.display === 'flex'){
+      if(e.key === 'Escape') closeModal();
       return;
     }
-    if(t.id === 'lc-modal-submit'){
-      submitModal();
-      return;
+    var item = FLOW[state.currentIndex];
+    if(!item) return;
+    if(item.type === 'question'){
+      if(e.key === '1') { scoreCurrent(1); return; }
+      if(e.key === '2') { scoreCurrent(2); return; }
+      if(e.key === '3') { scoreCurrent(3); return; }
+      if(e.key === 'Escape') { next(); return; }
     }
+    if(e.key === 'ArrowRight') { next(); return; }
+    if(e.key === 'ArrowLeft')  { back(); return; }
+  }
+
+  // ============================================================
+  // UTIL
+  // ============================================================
+  function escapeHtml(s){
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   // ============================================================
   // INIT
   // ============================================================
   function init(){
-    renderFreeCategories();
-    renderLockedCategories();
-    updateSummary();
-    var wrap = document.getElementById('lc-wrap');
+    renderCard();
+    var wrap = gi('lc-wrap');
     if(wrap){ wrap.addEventListener('click', onWrapClick); }
-    var ov = document.getElementById('lc-modal-overlay');
+    var ov = gi('lc-modal-overlay');
     if(ov){ ov.addEventListener('click', onModalClick); }
+    document.addEventListener('keydown', onKey);
   }
 
   if(document.readyState === 'loading'){
@@ -697,3 +734,5 @@
   }
 })();
 </script>
+</body>
+</html>
