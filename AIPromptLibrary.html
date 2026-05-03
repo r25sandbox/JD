@@ -1,0 +1,516 @@
+<!--
+================================================================================
+  Deck of Innovation — Interactive Prompt Library
+  Source material: JD Meier (sourcesofinsight.com) — "Deck of Innovation"
+  
+  VERSION: v0.1
+  DATE: 2026-05-03
+  
+  CHANGELOG
+  ---------
+  v0.1 (2026-05-03) — Initial prototype
+    - All 52 prompts across 7 categories from the source deck
+    - Free tier: Explain Your Thinking (9), Challenge Assumptions (8) = 17 prompts
+    - Locked tier: 5 categories, 35 prompts behind email-gate modal
+    - Browse-default view with category groupings
+    - Search bar (filters across question + prompt text)
+    - Category chips (filter to one category)
+    - "I'm stuck on..." quick-filter pills (situation-first shortcuts)
+    - One-click copy on every prompt card (clipboard API + textarea fallback)
+    - Favorites (star toggle, persisted in localStorage)
+    - "Recently copied" memory for power users
+    - localStorage key: doi_v1_state
+    - Modal mockup matching v0.2 Leadership Checklist pattern (no real backend)
+  
+  CONVENTIONS
+  -----------
+  - Single-file HTML, all inline styles, vanilla JS, no external deps
+  - CSP-safe: delegated addEventListener, no onclick= attributes, no <style> in head
+  - DOM scoping helper gi() so this is safe to embed alongside other components
+  - Responsive via flexbox, no media queries
+  - Brand palette matches sourcesofinsight.com (cream/teal/gold)
+================================================================================
+-->
+<div id="DOI_WRAP" style="background:#FBF7F0;color:#2c3e44;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:32px 20px;min-height:100vh;box-sizing:border-box;">
+  <div style="max-width:1100px;margin:0 auto;">
+
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="font-family:Georgia,serif;font-size:13px;letter-spacing:0.18em;text-transform:uppercase;color:#B8893A;margin-bottom:8px;">A Library by JD Meier</div>
+      <h1 style="font-family:Georgia,serif;font-size:38px;color:#1F3A3D;margin:0 0 12px 0;font-weight:normal;line-height:1.2;">The Deck of Innovation</h1>
+      <p style="font-size:16px;color:#5a6b70;max-width:640px;margin:0 auto;line-height:1.6;">52 advanced AI prompts to help you think differently, challenge assumptions, and find breakthrough ideas. Pick the prompt that fits your problem — copy, paste, and put it to work.</p>
+    </div>
+
+    <!-- Search + situation pills -->
+    <div style="background:#fff;border:1px solid #e8dfc9;border-radius:8px;padding:20px;margin-bottom:20px;">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:14px;">
+        <input id="doi_search" type="text" placeholder="Search prompts (e.g. 'budget', 'speed', 'customer')..." style="flex:1 1 280px;padding:11px 14px;border:1px solid #d4c5a8;border-radius:6px;font-size:15px;font-family:inherit;color:#2c3e44;background:#FBF7F0;outline:none;box-sizing:border-box;">
+        <button id="doi_clear" style="padding:11px 18px;background:transparent;color:#5a6b70;border:1px solid #d4c5a8;border-radius:6px;font-size:14px;cursor:pointer;font-family:inherit;">Clear</button>
+      </div>
+      <div style="font-family:Georgia,serif;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#8a9ba1;margin-bottom:10px;">I'm stuck on…</div>
+      <div id="doi_pills" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+    </div>
+
+    <!-- Category chips -->
+    <div style="margin-bottom:24px;">
+      <div id="doi_chips" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+    </div>
+
+    <!-- Stats bar -->
+    <div id="doi_stats" style="display:flex;flex-wrap:wrap;gap:20px;font-size:13px;color:#5a6b70;margin-bottom:20px;padding:0 4px;"></div>
+
+    <!-- Cards container -->
+    <div id="doi_cards"></div>
+
+    <!-- Footer -->
+    <div style="text-align:center;margin-top:48px;padding:24px;border-top:1px solid #e8dfc9;">
+      <p style="font-family:Georgia,serif;font-size:15px;color:#1F3A3D;margin:0 0 6px 0;font-style:italic;">Stand on the shoulders of giants.</p>
+      <p style="font-size:13px;color:#8a9ba1;margin:0;">Source: <a href="https://sourcesofinsight.com" style="color:#B8893A;text-decoration:none;">sourcesofinsight.com</a> — Explore the full library.</p>
+      <button id="doi_reset" style="margin-top:14px;padding:7px 14px;background:transparent;color:#8a9ba1;border:1px solid #e8dfc9;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">Reset favorites &amp; history</button>
+    </div>
+  </div>
+
+  <!-- Modal (paywall mockup) -->
+  <div id="doi_modal" style="display:none;position:fixed;inset:0;background:rgba(31,58,61,0.6);z-index:9999;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;">
+    <div style="background:#FBF7F0;border:1px solid #d4c5a8;border-radius:10px;max-width:480px;width:100%;padding:32px;box-shadow:0 20px 60px rgba(31,58,61,0.3);box-sizing:border-box;">
+      <div id="doi_modal_form">
+        <div style="font-family:Georgia,serif;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#B8893A;margin-bottom:8px;">The Full Library</div>
+        <h2 style="font-family:Georgia,serif;font-size:26px;color:#1F3A3D;margin:0 0 12px 0;font-weight:normal;line-height:1.3;">Unlock all 52 prompts</h2>
+        <p style="font-size:14px;color:#5a6b70;line-height:1.6;margin:0 0 20px 0;">You're working with the foundation. The full library opens up five more categories — Find Breakthrough Opportunities, Design for Speed, Amplify Impact, Think Like a Disruptor, and Customer Obsession. JD personally reviews each request.</p>
+        <label style="display:block;font-size:13px;color:#2c3e44;margin-bottom:6px;font-weight:600;">Name</label>
+        <input id="doi_m_name" type="text" style="width:100%;padding:10px 12px;border:1px solid #d4c5a8;border-radius:6px;font-size:14px;font-family:inherit;background:#fff;margin-bottom:14px;box-sizing:border-box;outline:none;">
+        <label style="display:block;font-size:13px;color:#2c3e44;margin-bottom:6px;font-weight:600;">Email</label>
+        <input id="doi_m_email" type="email" style="width:100%;padding:10px 12px;border:1px solid #d4c5a8;border-radius:6px;font-size:14px;font-family:inherit;background:#fff;margin-bottom:14px;box-sizing:border-box;outline:none;">
+        <label style="display:block;font-size:13px;color:#2c3e44;margin-bottom:6px;font-weight:600;">What draws you to this work?</label>
+        <textarea id="doi_m_why" rows="3" style="width:100%;padding:10px 12px;border:1px solid #d4c5a8;border-radius:6px;font-size:14px;font-family:inherit;background:#fff;margin-bottom:18px;box-sizing:border-box;outline:none;resize:vertical;"></textarea>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button id="doi_m_submit" style="flex:1 1 200px;padding:12px;background:#B8893A;color:#fff;border:none;border-radius:6px;font-size:15px;cursor:pointer;font-family:inherit;font-weight:600;">Request access</button>
+          <button id="doi_m_cancel" style="padding:12px 18px;background:transparent;color:#5a6b70;border:1px solid #d4c5a8;border-radius:6px;font-size:14px;cursor:pointer;font-family:inherit;">Maybe later</button>
+        </div>
+        <p style="font-size:11px;color:#8a9ba1;margin:14px 0 0 0;text-align:center;font-style:italic;">Demo only — no email is sent.</p>
+      </div>
+      <div id="doi_modal_thanks" style="display:none;text-align:center;padding:20px 0;">
+        <div style="font-size:48px;margin-bottom:12px;">📚</div>
+        <h2 style="font-family:Georgia,serif;font-size:24px;color:#1F3A3D;margin:0 0 12px 0;font-weight:normal;">Thank you.</h2>
+        <p style="font-size:14px;color:#5a6b70;line-height:1.6;margin:0 0 20px 0;">JD personally reviews each request. You'll hear back within a few days.</p>
+        <button id="doi_m_close" style="padding:11px 22px;background:#1F3A3D;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-family:inherit;">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="doi_toast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1F3A3D;color:#FBF7F0;padding:12px 22px;border-radius:8px;font-size:14px;z-index:10000;box-shadow:0 8px 24px rgba(0,0,0,0.2);font-family:inherit;"></div>
+</div>
+
+<script>
+(function(){
+  // DOM scoping helper
+  function gi(id){var w=document.getElementById('DOI_WRAP');return w?w.querySelector('#'+id):document.getElementById(id);}
+
+  // ----- DATA: 52 prompts across 7 categories -----
+  var CATEGORIES = [
+    {id:'explain', name:'Explain Your Thinking', free:true, color:'#1F3A3D'},
+    {id:'challenge', name:'Challenge Assumptions', free:true, color:'#1F3A3D'},
+    {id:'breakthrough', name:'Find Breakthrough Opportunities', free:false, color:'#B8893A'},
+    {id:'speed', name:'Design for Speed', free:false, color:'#B8893A'},
+    {id:'amplify', name:'Amplify Impact', free:false, color:'#B8893A'},
+    {id:'disruptor', name:'Think Like a Disruptor', free:false, color:'#B8893A'},
+    {id:'customer', name:'Customer Obsession', free:false, color:'#B8893A'}
+  ];
+
+  var PROMPTS = [
+    // Explain Your Thinking (8)
+    {id:1, cat:'explain', q:"What's the opposite of your idea?", p:"Generate ideas that are the complete opposite of my current approach to [problem/idea]."},
+    {id:2, cat:'explain', q:"What if your biggest constraint disappeared?", p:"Imagine [constraint] is gone—what bold solutions emerge for [problem/goal]?"},
+    {id:3, cat:'explain', q:"How would a 5-year-old explain this?", p:"Explain [concept/problem] in the simplest, most childlike terms possible."},
+    {id:4, cat:'explain', q:"What's an idea so crazy it just might work?", p:"Brainstorm wild, unconventional ideas for solving [problem]—the crazier, the better!"},
+    {id:5, cat:'explain', q:"What's something unexpected you could combine?", p:"Suggest surprising combinations of [thing 1] and [thing 2] to create innovative solutions."},
+    {id:6, cat:'explain', q:"What's a completely different industry's solution to this?", p:"How do other industries solve similar challenges to [problem]? Apply their strategies here."},
+    {id:7, cat:'explain', q:"If you had to solve this problem in 10 minutes, what would you do?", p:"Generate fast, actionable ideas for tackling [problem] with only 10 minutes to act."},
+    {id:8, cat:'explain', q:"How would someone from 100 years ago solve this?", p:"Imagine it's 100 years ago—what solutions would a person from that era propose for [problem]?"},
+
+    // Challenge Assumptions (8)
+    {id:9, cat:'challenge', q:"What's the biggest assumption everyone is making?", p:"Identify the biggest unspoken assumptions behind [idea/problem] and challenge them."},
+    {id:10, cat:'challenge', q:"What if you had to do this with zero budget?", p:"Generate creative, no-cost solutions for achieving [goal] without any budget."},
+    {id:11, cat:'challenge', q:"What happens if we remove the most important part?", p:"Imagine [key element] is gone—how would you reimagine solving [problem]?"},
+    {id:12, cat:'challenge', q:"What if this problem wasn't actually a problem?", p:"Reframe [problem] as a potential opportunity instead of a challenge. What changes?"},
+    {id:13, cat:'challenge', q:"What if your business model had to be the opposite?", p:"Envision a completely reversed business model for [business/idea] and its potential benefits."},
+    {id:14, cat:'challenge', q:"If you couldn't use your usual methods, how else would you solve it?", p:"Suggest alternative approaches for tackling [problem] without using [usual method]."},
+    {id:15, cat:'challenge', q:"What's the simplest possible way to do this?", p:"Generate the most straightforward, minimal-effort solution for [task/problem]."},
+    {id:16, cat:'challenge', q:"What's something you've always believed about this that might be false?", p:"Challenge longstanding beliefs about [topic] and propose alternative perspectives."},
+
+    // Find Breakthrough Opportunities (8)
+    {id:17, cat:'breakthrough', q:"What's the biggest unmet need in this space?", p:"Identify the most significant unmet needs within [industry/market] and suggest innovative solutions."},
+    {id:18, cat:'breakthrough', q:"What problem do people complain about but accept as 'normal'?", p:"Highlight everyday pain points in [market/experience] that people tolerate but shouldn't have to."},
+    {id:19, cat:'breakthrough', q:"Where is there growing frustration in the market?", p:"Analyze market trends to uncover rising frustrations and untapped opportunities in [sector]."},
+    {id:20, cat:'breakthrough', q:"What trend is emerging that people aren't noticing yet?", p:"Identify early-stage trends in [industry] that are flying under the radar but could have big impact."},
+    {id:21, cat:'breakthrough', q:"What's something customers are hacking together on their own?", p:"Discover DIY solutions and customer hacks in [space] that reveal hidden needs and opportunities."},
+    {id:22, cat:'breakthrough', q:"What's working really well in one niche that could be applied elsewhere?", p:"Find successful approaches in [niche] that could be transplanted to solve problems in [other domain]."},
+    {id:23, cat:'breakthrough', q:"What's a small but growing community of passionate users telling us?", p:"Analyze insights from emerging communities in [field] to identify trends and innovation opportunities."},
+    {id:24, cat:'breakthrough', q:"Where are people spending time/money inefficiently?", p:"Spot inefficiencies in how people use their time and money in [sector] and propose smarter solutions."},
+
+    // Design for Speed (8)
+    {id:25, cat:'speed', q:"What's the simplest version you can test today?", p:"Suggest a minimal viable version of [idea/product] that I could test immediately."},
+    {id:26, cat:'speed', q:"If you had to launch this in 24 hours, how would you do it?", p:"Create a step-by-step plan to launch [project/idea] within 24 hours, focusing on speed and impact."},
+    {id:27, cat:'speed', q:"What's one assumption you can test immediately?", p:"Identify a key assumption about [idea] and generate a quick experiment to validate or invalidate it."},
+    {id:28, cat:'speed', q:"How could you fake it before you make it?", p:"Suggest ways to prototype or simulate [idea/product] without full development to test viability."},
+    {id:29, cat:'speed', q:"What would a 10x faster version of this process look like?", p:"Redesign [process] to be 10 times faster while maintaining quality and effectiveness."},
+    {id:30, cat:'speed', q:"What's the fastest way to get real customer feedback?", p:"Generate ideas for quickly gathering authentic feedback from [target audience] about [idea]."},
+    {id:31, cat:'speed', q:"What could you strip away to make this work faster?", p:"Identify non-essential elements of [project/process] that could be removed to boost speed."},
+    {id:32, cat:'speed', q:"What's taking too long that doesn't need to?", p:"Analyze [process] to find bottlenecks and suggest faster, more efficient alternatives."},
+
+    // Amplify Impact (8)
+    {id:33, cat:'amplify', q:"How could AI make this 10x better?", p:"Suggest AI-driven enhancements to boost [idea/product] by 10x in effectiveness and value."},
+    {id:34, cat:'amplify', q:"What would this look like if it reached 1 billion people?", p:"Envision how [idea/product] could scale to impact 1 billion people and outline the key steps."},
+    {id:35, cat:'amplify', q:"How could this become a global movement?", p:"Generate ideas to transform [concept/initiative] into a worldwide movement with lasting influence."},
+    {id:36, cat:'amplify', q:"If a competitor wanted to steal this, what would they do?", p:"Analyze how a competitor might outmaneuver us with [idea] and suggest strategies to stay ahead."},
+    {id:37, cat:'amplify', q:"What's a network effect that could supercharge this?", p:"Identify potential network effects that could exponentially amplify [idea/product]'s impact."},
+    {id:38, cat:'amplify', q:"What's a way to turn this into an ecosystem, not just a product?", p:"Propose ways to evolve [idea/product] into a broader ecosystem with multiple value streams."},
+    {id:39, cat:'amplify', q:"What partnership could multiply its impact?", p:"Suggest high-impact partnerships that could significantly boost [idea/product]'s reach and influence."},
+    {id:40, cat:'amplify', q:"How would a top tech company scale this?", p:"Analyze how leading tech companies like Google, Amazon, or Apple would scale [idea/product]."},
+
+    // Think Like a Disruptor (8)
+    {id:41, cat:'disruptor', q:"What would disrupt your business tomorrow?", p:"Identify emerging threats or trends that could disrupt [business/industry] in the near future."},
+    {id:42, cat:'disruptor', q:"How could a new startup make this obsolete?", p:"Analyze how a nimble startup could create a solution that renders [product/service] irrelevant."},
+    {id:43, cat:'disruptor', q:"What's the biggest industry shift happening right now?", p:"Highlight major shifts in [industry] and explore how they could impact our business."},
+    {id:44, cat:'disruptor', q:"How could AI replace what we do?", p:"Explore ways AI could automate or transform [process/service] and how to adapt proactively."},
+    {id:45, cat:'disruptor', q:"If customers had unlimited choices, would they still pick this?", p:"Evaluate how [product/service] would fare in a market with endless alternatives and suggest improvements."},
+    {id:46, cat:'disruptor', q:"What's a new technology that could change everything?", p:"Identify emerging technologies with the potential to revolutionize [industry/market]."},
+    {id:47, cat:'disruptor', q:"What industry will be unrecognizable in 5 years?", p:"Predict which industries are likely to undergo radical changes in the next 5 years and why."},
+    {id:48, cat:'disruptor', q:"How can we disrupt ourselves before someone else does?", p:"Generate bold ideas for reinventing [business/product] before competitors do."},
+
+    // Customer Obsession (4)
+    {id:49, cat:'customer', q:"What's the biggest pain point customers experience?", p:"Identify the most significant pain points for [target customers] and suggest solutions to address them."},
+    {id:50, cat:'customer', q:"What's a problem customers don't realize they have yet?", p:"Uncover hidden problems or unmet needs that [target customers] may not yet recognize."},
+    {id:51, cat:'customer', q:"If you followed a customer for a day, what inefficiencies would you see?", p:"Imagine observing [target customers] in their daily routine—highlight inefficiencies and potential solutions."},
+    {id:52, cat:'customer', q:"What emotional need is driving this behavior?", p:"Analyze the underlying emotional drivers behind [customer behavior] to create more resonant solutions."}
+  ];
+
+  // Situation pills — map to relevant categories
+  var SITUATIONS = [
+    {label:'a stuck problem', cats:['explain','challenge']},
+    {label:'moving faster', cats:['speed']},
+    {label:'finding new opportunities', cats:['breakthrough']},
+    {label:'scaling impact', cats:['amplify']},
+    {label:'understanding customers', cats:['customer']},
+    {label:'staying ahead of disruption', cats:['disruptor']}
+  ];
+
+  // ----- STATE -----
+  var STORAGE_KEY = 'doi_v1_state';
+  var state = {favorites:{}, recent:[], unlocked:false};
+  try {
+    var saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) state = Object.assign(state, JSON.parse(saved));
+  } catch(e) {}
+
+  function saveState(){
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+  }
+
+  var ui = {search:'', activeCat:'all', activeSituation:null};
+
+  // ----- HELPERS -----
+  function catById(id){ for (var i=0;i<CATEGORIES.length;i++) if (CATEGORIES[i].id===id) return CATEGORIES[i]; return null; }
+  function isLocked(prompt){ var c = catById(prompt.cat); return c && !c.free && !state.unlocked; }
+  function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  // Highlight [variables] in prompt template
+  function highlightVars(text){
+    var esc = escHtml(text);
+    return esc.replace(/\[([^\]]+)\]/g, '<span style="background:#FBF7F0;color:#B8893A;padding:1px 6px;border-radius:3px;font-weight:600;border:1px solid #e8dfc9;">[$1]</span>');
+  }
+
+  function showToast(msg){
+    var t = gi('doi_toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function(){ t.style.display = 'none'; }, 2200);
+  }
+
+  function copyToClipboard(text, cb){
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function(){ cb(true); }, function(){ fallbackCopy(text, cb); });
+    } else {
+      fallbackCopy(text, cb);
+    }
+  }
+  function fallbackCopy(text, cb){
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      cb(ok);
+    } catch(e) { cb(false); }
+  }
+
+  // ----- RENDER: SITUATION PILLS -----
+  function renderPills(){
+    var c = gi('doi_pills');
+    var html = '';
+    for (var i=0;i<SITUATIONS.length;i++) {
+      var s = SITUATIONS[i];
+      var active = ui.activeSituation === i;
+      html += '<button data-situation="'+i+'" style="padding:7px 13px;background:'+(active?'#1F3A3D':'#FBF7F0')+';color:'+(active?'#FBF7F0':'#2c3e44')+';border:1px solid '+(active?'#1F3A3D':'#d4c5a8')+';border-radius:18px;font-size:13px;cursor:pointer;font-family:inherit;">'+escHtml(s.label)+'</button>';
+    }
+    c.innerHTML = html;
+  }
+
+  // ----- RENDER: CATEGORY CHIPS -----
+  function renderChips(){
+    var c = gi('doi_chips');
+    var html = '<button data-chip="all" style="padding:8px 14px;background:'+(ui.activeCat==='all'?'#1F3A3D':'transparent')+';color:'+(ui.activeCat==='all'?'#FBF7F0':'#2c3e44')+';border:1px solid '+(ui.activeCat==='all'?'#1F3A3D':'#d4c5a8')+';border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">All ('+PROMPTS.length+')</button>';
+    var favCount = Object.keys(state.favorites).length;
+    if (favCount > 0) {
+      html += '<button data-chip="_favorites" style="padding:8px 14px;background:'+(ui.activeCat==='_favorites'?'#B8893A':'transparent')+';color:'+(ui.activeCat==='_favorites'?'#fff':'#2c3e44')+';border:1px solid '+(ui.activeCat==='_favorites'?'#B8893A':'#d4c5a8')+';border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">★ Favorites ('+favCount+')</button>';
+    }
+    for (var i=0;i<CATEGORIES.length;i++) {
+      var cat = CATEGORIES[i];
+      var count = PROMPTS.filter(function(p){return p.cat===cat.id;}).length;
+      var active = ui.activeCat === cat.id;
+      var lockIcon = !cat.free && !state.unlocked ? ' 🔒' : '';
+      html += '<button data-chip="'+cat.id+'" style="padding:8px 14px;background:'+(active?cat.color:'transparent')+';color:'+(active?'#fff':'#2c3e44')+';border:1px solid '+(active?cat.color:'#d4c5a8')+';border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">'+escHtml(cat.name)+' ('+count+')'+lockIcon+'</button>';
+    }
+    c.innerHTML = html;
+  }
+
+  // ----- RENDER: STATS -----
+  function renderStats(visibleCount, totalCount){
+    var c = gi('doi_stats');
+    var unlocked = state.unlocked ? 52 : 17;
+    var html = '<div><strong style="color:#1F3A3D;">'+visibleCount+'</strong> showing</div>';
+    html += '<div><strong style="color:#1F3A3D;">'+unlocked+'</strong> of 52 unlocked</div>';
+    if (state.recent.length > 0) html += '<div><strong style="color:#1F3A3D;">'+state.recent.length+'</strong> recently copied</div>';
+    c.innerHTML = html;
+  }
+
+  // ----- RENDER: CARDS -----
+  function getFilteredPrompts(){
+    var list = PROMPTS.slice();
+
+    // Favorites filter
+    if (ui.activeCat === '_favorites') {
+      list = list.filter(function(p){ return state.favorites[p.id]; });
+    } else if (ui.activeCat !== 'all') {
+      list = list.filter(function(p){ return p.cat === ui.activeCat; });
+    }
+
+    // Situation filter (intersect with category filter)
+    if (ui.activeSituation !== null) {
+      var sitCats = SITUATIONS[ui.activeSituation].cats;
+      list = list.filter(function(p){ return sitCats.indexOf(p.cat) !== -1; });
+    }
+
+    // Search filter
+    if (ui.search) {
+      var q = ui.search.toLowerCase();
+      list = list.filter(function(p){
+        return p.q.toLowerCase().indexOf(q) !== -1 || p.p.toLowerCase().indexOf(q) !== -1;
+      });
+    }
+
+    return list;
+  }
+
+  function renderCards(){
+    var c = gi('doi_cards');
+    var list = getFilteredPrompts();
+    renderStats(list.length, PROMPTS.length);
+
+    if (list.length === 0) {
+      c.innerHTML = '<div style="background:#fff;border:1px solid #e8dfc9;border-radius:8px;padding:40px;text-align:center;color:#5a6b70;">No prompts match those filters. Try clearing the search or picking a different category.</div>';
+      return;
+    }
+
+    // Group by category for cleaner browse
+    var groups = {};
+    var groupOrder = [];
+    for (var i=0;i<list.length;i++) {
+      var p = list[i];
+      if (!groups[p.cat]) { groups[p.cat] = []; groupOrder.push(p.cat); }
+      groups[p.cat].push(p);
+    }
+
+    var html = '';
+    for (var g=0;g<groupOrder.length;g++) {
+      var catId = groupOrder[g];
+      var cat = catById(catId);
+      var groupPrompts = groups[catId];
+      var locked = !cat.free && !state.unlocked;
+
+      // Category header
+      html += '<div style="margin-top:'+(g===0?'0':'36px')+';margin-bottom:16px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">';
+      html += '<h2 style="font-family:Georgia,serif;font-size:22px;color:#1F3A3D;margin:0;font-weight:normal;">'+escHtml(cat.name)+'</h2>';
+      html += '<div style="font-size:12px;color:#8a9ba1;letter-spacing:0.08em;text-transform:uppercase;">'+groupPrompts.length+' prompt'+(groupPrompts.length===1?'':'s')+(locked?' · Locked':' · Free')+'</div>';
+      html += '</div>';
+
+      html += '<div style="display:flex;flex-wrap:wrap;gap:14px;">';
+      for (var i=0;i<groupPrompts.length;i++) {
+        html += renderCard(groupPrompts[i], locked);
+      }
+      html += '</div>';
+    }
+
+    c.innerHTML = html;
+  }
+
+  function renderCard(p, locked){
+    var fav = !!state.favorites[p.id];
+    var bg = locked ? '#f4ecdc' : '#fff';
+    var border = locked ? '#d4c5a8' : '#e8dfc9';
+
+    var html = '<div style="flex:1 1 320px;max-width:520px;background:'+bg+';border:1px solid '+border+';border-radius:8px;padding:20px;display:flex;flex-direction:column;position:relative;'+(locked?'opacity:0.85;':'')+'">';
+
+    // Top row: question + favorite star
+    html += '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;">';
+    html += '<div style="flex:1;font-family:Georgia,serif;font-size:17px;color:#1F3A3D;line-height:1.4;">'+escHtml(p.q)+'</div>';
+    html += '<button data-fav="'+p.id+'" title="'+(fav?'Remove favorite':'Add favorite')+'" style="background:none;border:none;font-size:20px;cursor:pointer;color:'+(fav?'#B8893A':'#d4c5a8')+';padding:0;line-height:1;flex-shrink:0;">'+(fav?'★':'☆')+'</button>';
+    html += '</div>';
+
+    if (locked) {
+      html += '<div style="background:#FBF7F0;border:1px dashed #d4c5a8;border-radius:6px;padding:14px;text-align:center;color:#5a6b70;font-size:13px;line-height:1.5;margin-bottom:12px;">🔒 The full prompt is in The Full Library.</div>';
+      html += '<button data-unlock="1" style="margin-top:auto;padding:10px;background:#B8893A;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-family:inherit;font-weight:600;">Unlock</button>';
+    } else {
+      html += '<div style="background:#FBF7F0;border:1px solid #e8dfc9;border-radius:6px;padding:14px;font-size:13px;line-height:1.6;color:#2c3e44;margin-bottom:14px;font-family:Georgia,serif;">'+highlightVars(p.p)+'</div>';
+      html += '<div style="display:flex;gap:8px;margin-top:auto;">';
+      html += '<button data-copy="'+p.id+'" style="flex:1;padding:9px;background:#1F3A3D;color:#FBF7F0;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">Copy prompt</button>';
+      html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  // ----- ACTIONS -----
+  function toggleFav(id){
+    id = parseInt(id, 10);
+    if (state.favorites[id]) delete state.favorites[id];
+    else state.favorites[id] = true;
+    saveState();
+    renderChips();
+    renderCards();
+  }
+
+  function copyPrompt(id){
+    id = parseInt(id, 10);
+    var p = null;
+    for (var i=0;i<PROMPTS.length;i++) if (PROMPTS[i].id === id) { p = PROMPTS[i]; break; }
+    if (!p) return;
+
+    copyToClipboard(p.p, function(ok){
+      if (ok) {
+        showToast('Copied — paste into your AI tool');
+        // Track recent (max 10, dedup)
+        state.recent = state.recent.filter(function(x){return x !== id;});
+        state.recent.unshift(id);
+        if (state.recent.length > 10) state.recent.length = 10;
+        saveState();
+        renderStats(getFilteredPrompts().length, PROMPTS.length);
+      } else {
+        showToast('Copy failed — select and copy manually');
+      }
+    });
+  }
+
+  function openModal(){
+    var m = gi('doi_modal');
+    m.style.display = 'flex';
+    gi('doi_modal_form').style.display = 'block';
+    gi('doi_modal_thanks').style.display = 'none';
+  }
+  function closeModal(){ gi('doi_modal').style.display = 'none'; }
+
+  function submitModal(){
+    var name = gi('doi_m_name').value.trim();
+    var email = gi('doi_m_email').value.trim();
+    if (!name || !email || email.indexOf('@') < 0) {
+      showToast('Please fill in name and a valid email.');
+      return;
+    }
+    // Mockup — flip to thanks state
+    gi('doi_modal_form').style.display = 'none';
+    gi('doi_modal_thanks').style.display = 'block';
+    // For demo purposes: do NOT actually unlock. JD reviews requests.
+    // (If you want demo unlock, set state.unlocked = true here and re-render.)
+  }
+
+  function resetAll(){
+    if (!confirm('Reset favorites and recent history? This cannot be undone.')) return;
+    state = {favorites:{}, recent:[], unlocked:false};
+    saveState();
+    ui.activeCat = 'all';
+    ui.activeSituation = null;
+    ui.search = '';
+    gi('doi_search').value = '';
+    renderPills();
+    renderChips();
+    renderCards();
+    showToast('Reset complete.');
+  }
+
+  // ----- DELEGATED EVENT HANDLERS -----
+  var wrap = gi('DOI_WRAP') || document.getElementById('DOI_WRAP');
+
+  wrap.addEventListener('click', function(e){
+    var t = e.target;
+    var ds = t.getAttribute && (t.getAttribute('data-situation') || (t.closest && t.closest('[data-situation]') && t.closest('[data-situation]').getAttribute('data-situation')));
+    var dc = t.getAttribute && (t.getAttribute('data-chip') || (t.closest && t.closest('[data-chip]') && t.closest('[data-chip]').getAttribute('data-chip')));
+    var df = t.getAttribute && t.getAttribute('data-fav');
+    var dco = t.getAttribute && t.getAttribute('data-copy');
+    var du = t.getAttribute && t.getAttribute('data-unlock');
+
+    if (t.id === 'doi_clear') {
+      ui.search = ''; gi('doi_search').value = '';
+      renderCards();
+    } else if (ds !== null && ds !== undefined && t.hasAttribute && t.hasAttribute('data-situation')) {
+      var idx = parseInt(ds, 10);
+      ui.activeSituation = (ui.activeSituation === idx) ? null : idx;
+      renderPills();
+      renderCards();
+    } else if (dc && t.hasAttribute && t.hasAttribute('data-chip')) {
+      ui.activeCat = dc;
+      ui.activeSituation = null; // chips clear situation filter
+      renderPills();
+      renderChips();
+      renderCards();
+    } else if (df) {
+      toggleFav(df);
+    } else if (dco) {
+      copyPrompt(dco);
+    } else if (du) {
+      openModal();
+    } else if (t.id === 'doi_m_submit') {
+      submitModal();
+    } else if (t.id === 'doi_m_cancel' || t.id === 'doi_m_close') {
+      closeModal();
+    } else if (t.id === 'doi_reset') {
+      resetAll();
+    } else if (t.id === 'doi_modal' && t === gi('doi_modal')) {
+      closeModal();
+    }
+  });
+
+  wrap.addEventListener('input', function(e){
+    if (e.target.id === 'doi_search') {
+      ui.search = e.target.value.trim();
+      renderCards();
+    }
+  });
+
+  // Esc closes modal
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') closeModal();
+  });
+
+  // ----- INITIAL RENDER -----
+  renderPills();
+  renderChips();
+  renderCards();
+})();
+</script>
